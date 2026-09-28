@@ -1,10 +1,21 @@
 """配置加载：TOML 格式，查找顺序 --config 参数 > ./config.toml > ~/.bili_fav_review/config.toml"""
 
 import copy
+import shutil
+import sys
+import time
 import tomllib
 from pathlib import Path
 
 from . import paths
+
+# 最近一次 load_config 遇到的解析问题（None 表示正常）。
+# 应用帮助里引导用户手工编辑 config.toml，写错引号/括号很常见；
+# 此前会直接抛 TOMLDecodeError，pythonw 下界面根本不显示，用户看到的是「双击没反应」。
+_LAST_LOAD_ERROR: str | None = None
+
+# 已经打到 stderr 过的那条消息，避免 CLI 每个子命令重复刷屏
+_LAST_PRINTED: str | None = None
 
 DEFAULT_CONFIG = {
     "bilibili": {
@@ -63,14 +74,68 @@ def config_candidates(explicit: str | None = None) -> list[Path]:
     return out
 
 
+def _backup_broken(path: Path) -> Path | None:
+    """把损坏的配置文件另存一份，绝不丢弃用户内容。返回备份路径。"""
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    dest = path.with_name(f"{path.name}.broken-{stamp}")
+    try:
+        shutil.copy2(path, dest)
+        return dest
+    except OSError:
+        return None
+
+
 def load_config(explicit: str | None = None) -> tuple[dict, Path | None]:
-    """返回 (配置 dict, 实际使用的配置文件路径或 None)。"""
+    """返回 (配置 dict, 实际使用的配置文件路径或 None)。
+
+    解析失败时**不再抛异常**（那会让 GUI 彻底起不来），改为：
+    备份损坏文件 → 回退默认配置 → 把原因记在 last_load_error() 里供上层展示。
+    """
+    global _LAST_LOAD_ERROR
+
     for p in config_candidates(explicit):
-        if p.exists():
+        if not p.exists():
+            continue
+        try:
             with open(p, "rb") as f:
                 data = tomllib.load(f)
-            return _merge(DEFAULT_CONFIG, data), p
+        except tomllib.TOMLDecodeError as e:
+            backup = _backup_broken(p)
+            hint = f"；原文件已备份为 {backup.name}" if backup else ""
+            _LAST_LOAD_ERROR = (
+                f"配置文件语法错误，已回退默认配置：{p}\n  {e}{hint}\n"
+                f"  修好该文件后重启即可恢复你的设置。"
+            )
+            _report(_LAST_LOAD_ERROR)
+            return copy.deepcopy(DEFAULT_CONFIG), p
+        except OSError as e:
+            _LAST_LOAD_ERROR = f"配置文件无法读取，已回退默认配置：{p}\n  {e}"
+            _report(_LAST_LOAD_ERROR)
+            return copy.deepcopy(DEFAULT_CONFIG), p
+
+        _LAST_LOAD_ERROR = None
+        return _merge(DEFAULT_CONFIG, data), p
+
+    _LAST_LOAD_ERROR = None
     return copy.deepcopy(DEFAULT_CONFIG), None
+
+
+def last_load_error() -> str | None:
+    """最近一次 load_config 的失败原因；None 表示一切正常。
+
+    调用方（GUI / CLI）应把它展示给用户 —— 静默回退默认配置本身就是一种故障，
+    用户会以为自己的设置莫名其妙丢了。
+    """
+    return _LAST_LOAD_ERROR
+
+
+def _report(err: str) -> None:
+    """把配置问题打到 stderr（CLI 可见），同一条只打一次。"""
+    global _LAST_PRINTED
+    if err == _LAST_PRINTED:
+        return
+    _LAST_PRINTED = err
+    print(f"[配置] {err}", file=sys.stderr, flush=True)
 
 
 def validate_llm(cfg: dict) -> list[str]:

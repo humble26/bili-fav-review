@@ -142,10 +142,60 @@ class TestStore(unittest.TestCase):
         # 复习一次，产生 last_review 记录（今天=20260913）
         st = apply_review(new_state("2026-09-14"), GRADE_OK, date(2026, 9, 13))
         self.store.save_review_state("BVd1", st)
-        act = self.store.review_activity(days=3)
+        # 显式传基准日：此前不传，函数内部用 time.time()，断言写死日期 → 隔天必失败
+        act = self.store.review_activity(days=3, today_iso="2026-09-13")
         self.assertEqual(act[-1], ("09-13", 1))
         self.assertEqual(sum(n for _, n in act), 1)
         self.assertIsInstance(_json.dumps(act), str)
+
+    def test_due_series_labels_follow_given_today(self):
+        """回归：日期标签必须与传入的 today_iso 同源。
+
+        此前 due_by_day 的窗口末端与标签都用 time.time()，只有逾期计数用了参数，
+        于是 series[0] 永远是「真实今天」而不是传进去的那天。
+        """
+        _, series = self.store.due_by_day("2026-09-13", days=7)
+        self.assertEqual([lbl for lbl, _ in series],
+                         ["09-13", "09-14", "09-15", "09-16", "09-17", "09-18", "09-19"])
+        # 换一个基准日，标签必须整体平移
+        _, series2 = self.store.due_by_day("2027-01-30", days=3)
+        self.assertEqual([lbl for lbl, _ in series2], ["01-30", "01-31", "02-01"],
+                         "跨月要正确进位")
+        # 不同基准日、同一份数据 → 逾期数应随基准日变化（setUp 每例建新库，本段自足）
+        self.store.upsert_video(_video("BVd3"))
+        self.store.init_review("BVd3", "2026-09-15")
+        self.assertEqual(self.store.due_by_day("2026-09-13", days=7)[0], 0,
+                         "09-15 相对 09-13 还没到期，不算逾期")
+        self.assertEqual(self.store.due_by_day("2026-09-16", days=7)[0], 1,
+                         "09-15 相对 09-16 已逾期")
+
+    def test_review_activity_default_uses_system_today(self):
+        """不传 today_iso 时仍走系统当天（保证生产调用行为不变）。"""
+        from datetime import date
+        self.store.upsert_video(_video("BVa0"))
+        self.store.init_review("BVa0", date.today().isoformat())
+        st = apply_review(new_state(date.today().isoformat()), GRADE_OK, date.today())
+        self.store.save_review_state("BVa0", st)
+        act = self.store.review_activity(days=3)
+        self.assertEqual(act[-1], (date.today().strftime("%m-%d"), 1))
+
+    def test_due_histogram_window_follows_given_today(self):
+        """回归：due_histogram 与 due_by_day 同源同缺陷，窗口末端也必须用 today_iso。"""
+        self.store.upsert_video(_video("BVh1"))
+        self.store.init_review("BVh1", "2026-09-14")   # 3 天后
+        self.store.upsert_video(_video("BVh2"))
+        self.store.init_review("BVh2", "2026-10-20")   # 窗口外
+
+        got = self.store.due_histogram("2026-09-11", days=7)   # 窗口到 09-18
+        self.assertEqual(got, [("2026-09-14", 1)], "只应含窗口内的 09-14")
+
+        # 基准日推到 09-16：09-14 变成逾期，窗口到 09-23
+        got2 = self.store.due_histogram("2026-09-16", days=7)
+        self.assertEqual(got2, [("已逾期", 1)], "09-14 相对 09-16 已逾期")
+
+        # 基准日推后到 10-25：两个都进窗口且都逾期
+        got3 = self.store.due_histogram("2026-10-25", days=7)
+        self.assertEqual(got3, [("已逾期", 2)])
 
     def test_anki_cards(self):
         self.store.upsert_video(_video("BVa1"))

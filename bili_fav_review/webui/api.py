@@ -149,6 +149,11 @@ class Api:
     def __init__(self):
         self.hub = EventHub()
         self.cfg, _ = config_mod.load_config()
+        # 配置解析未抛异常不代表没问题：语法错误时会回退默认配置并备份原文件，
+        # 必须把原因推给界面，否则用户会以为自己的设置莫名其妙丢了。
+        _cfg_err = config_mod.last_load_error()
+        if _cfg_err:
+            self.hub.put("log", {"level": "error", "text": _cfg_err})
         self.cfg_path = config_mod.resolve_config_path()
         self._local = threading.local()
         self._lock = threading.RLock()

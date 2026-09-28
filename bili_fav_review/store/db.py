@@ -8,6 +8,8 @@
 import json
 import sqlite3
 import time
+from datetime import date as _date
+from datetime import timedelta as _timedelta
 from pathlib import Path
 
 SCHEMA = """
@@ -364,7 +366,8 @@ class Store:
         return row[0]
 
     def due_histogram(self, today_iso: str, days: int = 7) -> list[tuple[str, int]]:
-        end = time.strftime("%Y-%m-%d", time.localtime(time.time() + days * 86400))
+        """未来 days 天的到期分布；窗口末端以传入的 today_iso 为基准（同 due_by_day）。"""
+        end = (_date.fromisoformat(today_iso) + _timedelta(days=days)).isoformat()
         rows = self.conn.execute(
             "SELECT due_date, COUNT(*) FROM review_state WHERE suspended=0 AND due_date<=? GROUP BY due_date ORDER BY due_date",
             (end,),
@@ -387,10 +390,15 @@ class Store:
         return {"lapses": int(r[0]), "avg_interval": round(float(r[1]), 1)}
 
     def due_by_day(self, today_iso: str, days: int = 7) -> tuple[int, list[tuple[str, int]]]:
-        """返回 (已逾期数, 未来 days 天的逐日到期数 [(MM-DD, 数量)])。"""
-        end_iso = time.strftime(
-            "%Y-%m-%d", time.localtime(time.time() + days * 86400)
-        )
+        """返回 (已逾期数, 未来 days 天的逐日到期数 [(MM-DD, 数量)])。
+
+        ⚠ 窗口末端与日期标签都以传入的 today_iso 为基准。
+        此前这两处用的是 time.time()，导致 today_iso 只影响逾期计数、
+        与返回的日期标签口径不一致（该函数也因此无法被测试）。
+        生产调用点传的都是 date.today()，所以本修正对实际行为等价。
+        """
+        base = _date.fromisoformat(today_iso)
+        end_iso = (base + _timedelta(days=days)).isoformat()
         overdue = self.conn.execute(
             "SELECT COUNT(*) FROM review_state WHERE due_date<? AND suspended=0",
             (today_iso,),
@@ -403,15 +411,18 @@ class Store:
         m = {r["due_date"]: r[1] for r in rows}
         out = []
         for i in range(days):
-            d = time.strftime("%Y-%m-%d", time.localtime(time.time() + i * 86400))
-            out.append((d[5:], m.get(d, 0)))
+            d = base + _timedelta(days=i)
+            out.append((d.strftime("%m-%d"), m.get(d.isoformat(), 0)))
         return overdue, out
 
-    def review_activity(self, days: int = 14) -> list[tuple[str, int]]:
-        """近 days 天的每日复习卡片数 [(MM-DD, 数量)]，按 last_review 记录统计。"""
-        start_int = int(
-            time.strftime("%Y%m%d", time.localtime(time.time() - (days - 1) * 86400))
-        )
+    def review_activity(self, days: int = 14,
+                        today_iso: str | None = None) -> list[tuple[str, int]]:
+        """近 days 天的每日复习卡片数 [(MM-DD, 数量)]，按 last_review 记录统计。
+
+        today_iso 可选：传了就以它为「今天」（便于测试），不传用系统当天。
+        """
+        base = _date.fromisoformat(today_iso) if today_iso else _date.today()
+        start_int = int((base - _timedelta(days=days - 1)).strftime("%Y%m%d"))
         rows = {
             r[0]: r[1]
             for r in self.conn.execute(
@@ -422,9 +433,8 @@ class Store:
         }
         out = []
         for i in range(days):
-            ts = time.time() + (i - days + 1) * 86400
-            key = int(time.strftime("%Y%m%d", time.localtime(ts)))
-            out.append((time.strftime("%m-%d", time.localtime(ts)), rows.get(key, 0)))
+            d = base - _timedelta(days=days - 1 - i)
+            out.append((d.strftime("%m-%d"), rows.get(int(d.strftime("%Y%m%d")), 0)))
         return out
 
     def anki_cards(self) -> list[sqlite3.Row]:

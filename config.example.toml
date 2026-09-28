@@ -1,0 +1,38 @@
+# 收藏夹遗忘曲线 · B站版 配置文件
+# 复制本文件为 config.toml（放在项目目录或 ~/.bili_fav_review/ 下）后修改。
+
+[bilibili]
+# 要同步的收藏夹 id（运行 `folders` 命令可见）；留空则首次 sync 时交互选择并记住
+folders = []
+# 字幕优先级：真实 CC 字幕优先于 AI 字幕
+subtitle_priority = ["zh-Hans", "ai-zh"]
+
+[llm]
+enabled = true
+# 任何 OpenAI 兼容接口均可。示例：
+#   智谱 GLM:   base_url = "https://open.bigmodel.cn/api/paas/v4"   model = "glm-4-flash"（免费）
+#   DeepSeek:   base_url = "https://api.deepseek.com/v1"           model = "deepseek-chat"
+#   本地 ollama: base_url = "http://localhost:11434/v1"             model = "qwen2.5:7b"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+api_key = ""            # 必填；只保存在本机
+model = "glm-4-flash"
+max_transcript_chars = 9000   # 送入 LLM 的字幕上限（超出截头留尾）
+timeout = 120
+batch_intro_size = 8          # 无字幕视频批量轻摘：一次 AI 调用合并的视频数
+
+[review]
+new_due_days = 0        # 新收藏当天即可学习（0=同步完就能复习；改成 1 则排到明天）
+max_per_session = 30    # 单次 review 最多过几张卡
+
+[sync]
+videos_per_run = 40     # 每次最多为多少个新视频拉字幕
+summaries_per_run = 40  # 每次最多生成多少张摘要卡（控制 token 花费）
+request_interval = 1.0  # B站 API 请求间隔（秒），请勿低于 0.5
+
+[notify]
+# Server酱（可选）：在 sct.ftqq.com 免费申请 SendKey 后，每日提醒会把到期数量推到微信
+serverchan_sendkey = ""
+
+[storage]
+# 数据目录（数据库/cookie/wbi 缓存），留空使用 ~/.bili_fav_review
+data_dir = ""

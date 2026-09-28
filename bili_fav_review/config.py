@@ -75,9 +75,28 @@ def config_candidates(explicit: str | None = None) -> list[Path]:
 
 
 def _backup_broken(path: Path) -> Path | None:
-    """把损坏的配置文件另存一份，绝不丢弃用户内容。返回备份路径。"""
+    """把损坏的配置文件另存一份，绝不丢弃用户内容。返回备份路径。
+
+    同一份损坏内容只备份一次：load_config 会被频繁调用（Web 界面每次刷新
+    都会经 refresh_config 再走一遍），否则会堆出一串 .broken-* 文件。
+    """
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return None
+    # 已有内容相同的备份就直接复用（只比对最近 10 个，避免目录异常时全量扫描）
+    for old in sorted(path.parent.glob(f"{path.name}.broken-*"), reverse=True)[:10]:
+        try:
+            if old.read_bytes() == raw:
+                return old
+        except OSError:
+            continue
     stamp = time.strftime("%Y%m%d-%H%M%S")
     dest = path.with_name(f"{path.name}.broken-{stamp}")
+    n = 1
+    while dest.exists():  # 同一秒内出现不同内容时不要互相覆盖
+        n += 1
+        dest = path.with_name(f"{path.name}.broken-{stamp}-{n}")
     try:
         shutil.copy2(path, dest)
         return dest

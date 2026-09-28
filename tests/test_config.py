@@ -156,6 +156,58 @@ class TestConfig(unittest.TestCase):
             self.assertEqual(cfg["llm"]["api_key"], DEFAULT_CONFIG["llm"]["api_key"])
             self.assertIn("无法读取", last_load_error() or "")
 
+    # ------------------------------------------------------------------
+    # 备份与上报的频次约束
+    # load_config 会被频繁调用（Web 界面每次刷新都经 refresh_config 走一遍），
+    # 所以「备份」与「上报」两件事都必须做频次约束，否则会堆文件、刷屏。
+    # ------------------------------------------------------------------
+
+    def test_same_broken_content_backed_up_only_once(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.toml"
+            p.write_text('[llm]\napi_key = "unclosed\n', encoding="utf-8")
+            # 让每次调用的时间戳都不同：按时间戳命名的话旧写法会造出 3 份
+            stamps = [f"2026010{i}-120000" for i in (1, 2, 3)]
+            with mock.patch("bili_fav_review.config.time.strftime",
+                            side_effect=stamps):
+                for _ in range(3):
+                    load_config(str(p))
+            backups = sorted(Path(d).glob("config.toml.broken-*"))
+            self.assertEqual(
+                len(backups), 1,
+                f"同一份损坏内容只应留一份备份，实得：{[b.name for b in backups]}")
+
+    def test_changed_broken_content_keeps_its_own_backup(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.toml"
+            p.write_text("[[[\n", encoding="utf-8")
+            load_config(str(p))
+            p.write_text("]]]\n", encoding="utf-8")
+            load_config(str(p))
+            backups = sorted(Path(d).glob("config.toml.broken-*"))
+            self.assertEqual(len(backups), 2, "内容不同应各留一份，不能覆盖上一版")
+            self.assertEqual(sorted(b.read_text(encoding="utf-8") for b in backups),
+                             ["[[[\n", "]]]\n"])
+
+    def test_webui_reports_config_error_only_once(self):
+        """Web 界面每次刷新都会走 refresh_config —— 同一条只报一次，不能刷屏。"""
+        from bili_fav_review.webui.api import Api
+
+        with tempfile.TemporaryDirectory() as d, contextlib.chdir(d), mock.patch(
+            "bili_fav_review.paths.default_data_dir", return_value=Path(d)
+        ):
+            (Path(d) / "config.toml").write_text(
+                '[llm]\napi_key = "unclosed\n', encoding="utf-8")
+            api = Api()
+            api.refresh_config()   # 模拟再刷新两次页面
+            api.refresh_config()
+            events = api.hub.since(0)["events"]
+            errs = [e for e in events
+                    if e["kind"] == "log" and e["data"].get("level") == "error"]
+            self.assertEqual(len(errs), 1,
+                             f"配置错误应只上报一次，实得 {len(errs)} 条")
+            self.assertIn("语法错误", errs[0]["data"]["text"])
+
 
 if __name__ == "__main__":
     unittest.main()

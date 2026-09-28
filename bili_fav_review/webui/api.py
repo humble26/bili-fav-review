@@ -148,13 +148,12 @@ def _card_payload(row) -> dict:
 class Api:
     def __init__(self):
         self.hub = EventHub()
+        self._last_cfg_err: str | None = None
         self.cfg, _ = config_mod.load_config()
+        self.cfg_path = config_mod.resolve_config_path()
         # 配置解析未抛异常不代表没问题：语法错误时会回退默认配置并备份原文件，
         # 必须把原因推给界面，否则用户会以为自己的设置莫名其妙丢了。
-        _cfg_err = config_mod.last_load_error()
-        if _cfg_err:
-            self.hub.put("log", {"level": "error", "text": _cfg_err})
-        self.cfg_path = config_mod.resolve_config_path()
+        self._report_cfg_error()
         self._local = threading.local()
         self._lock = threading.RLock()
         self._undo: tuple[str, dict | None] | None = None
@@ -216,6 +215,14 @@ class Api:
     def refresh_config(self) -> None:
         self.cfg, _ = config_mod.load_config()
         self.cfg_path = config_mod.resolve_config_path()
+        self._report_cfg_error()
+
+    def _report_cfg_error(self) -> None:
+        """把配置问题推给界面；同一条只报一次（本方法在每次界面刷新时都会走到）。"""
+        err = config_mod.last_load_error()
+        if err and err != self._last_cfg_err:
+            self.hub.put("log", {"level": "error", "text": err})
+        self._last_cfg_err = err
 
     def call(self, method: str, params: dict | None = None) -> dict:
         fn = getattr(self, f"rpc_{method}", None)

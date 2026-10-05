@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- 收藏夹遗忘曲线 · B站版 —— 应用图标（主设计，用于 ≥48px）
+       设计语言：深石墨 #262a33 圆角方底 + 白色记忆曲线 + 三圆点（终点红 = 「忘了」） -->
+  <rect x="90" y="90" width="844" height="844" rx="225" fill="#262a33"/>
+  <path d="M 248 252 C 260 425, 298 560, 388 625 C 492 698, 655 782, 798 812"
+        fill="none" stroke="#ffffff" stroke-width="36" stroke-linecap="round"/>
+  <circle cx="248" cy="252" r="58" fill="#ffffff"/>
+  <circle cx="388" cy="625" r="54" fill="#ffffff"/>
+  <circle cx="798" cy="812" r="46" fill="#c06051"/>
+</svg>

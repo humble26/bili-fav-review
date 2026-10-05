@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- 收藏夹遗忘曲线 · B站版 —— 应用图标（小尺寸变体，用于 16/24/32px：加粗、贴边、提高可读性） -->
+  <rect x="58" y="58" width="908" height="908" rx="242" fill="#262a33"/>
+  <path d="M 248 252 C 260 425, 298 560, 388 625 C 492 698, 655 782, 798 812"
+        fill="none" stroke="#ffffff" stroke-width="56" stroke-linecap="round"/>
+  <circle cx="248" cy="252" r="74" fill="#ffffff"/>
+  <circle cx="388" cy="625" r="66" fill="#ffffff"/>
+  <circle cx="798" cy="812" r="60" fill="#c06051"/>
+</svg>

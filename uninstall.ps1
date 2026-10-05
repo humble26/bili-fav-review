@@ -44,8 +44,15 @@ if (-not $Portable) {
     }
 }
 
-# 3. 程序文件
+# 3. 程序文件（运行中则中止，避免删一半失败）
 if (Test-Path $InstallDir) {
+    $busy = Get-Process -ErrorAction SilentlyContinue | Where-Object {
+        try { $_.Path -and $_.Path.StartsWith($InstallDir, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
+    }
+    if ($busy) {
+        Write-Host " [XX] 程序正在运行（$((($busy | Select-Object -ExpandProperty ProcessName) -join ', '))），请先退出再卸载" -ForegroundColor Red
+        exit 1
+    }
     Remove-Item -Recurse -Force $InstallDir
     Write-Host " [OK] 已删除程序目录 $InstallDir" -ForegroundColor Green
 } else {

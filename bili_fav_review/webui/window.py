@@ -21,6 +21,8 @@ from .server import create_server
 WINDOW_TITLE = f"收藏夹遗忘曲线 · B站版 v{__version__}"
 WINDOW_W, WINDOW_H = 1120, 780
 MIN_W, MIN_H = 960, 660
+# 窗口/任务栏图标（随包分发；打包成 exe 后与 exe 图标一致，见 assets/build_app_ico.py）
+APP_ICON = Path(__file__).resolve().parent / "static" / "app.ico"
 # 兜底窗口：页面停止轮询（窗口已关闭）这么久后本进程自动退出
 IDLE_EXIT_SECONDS = 300
 
@@ -105,7 +107,11 @@ def _run_window(url: str, api: Api) -> int:
             background_color="#f6f7f9",
         )
         # private_mode=False：保留 localStorage（界面偏好、字体设置），也避免缓存错乱
-        webview.start(private_mode=False)
+        # icon：标题栏/任务栏图标；winforms 后端虽文档标注仅 GTK/QT，实际同样生效
+        webview.start(
+            private_mode=False,
+            icon=str(APP_ICON) if APP_ICON.is_file() else None,
+        )
         return 0
     except Exception:
         import traceback

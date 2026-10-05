@@ -119,11 +119,12 @@ button { font-family: inherit; }
   height: 38px;
   display: grid;
   place-items: center;
-  font-size: 19px;
   border-radius: 11px;
-  background: linear-gradient(150deg, #55617f, #39415a);
+  background: #262a33;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), 0 6px 14px -8px rgba(0, 0, 0, .8);
 }
+
+.brand-logo svg { display: block; }
 
 .brand-title { font-size: 13.5px; font-weight: 700; color: #f4f5f8; }
 .brand-sub { font-size: 9px; font-weight: 700; letter-spacing: 1.4px; color: #7d828f; }

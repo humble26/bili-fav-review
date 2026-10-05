@@ -38,8 +38,9 @@ def _setup_windows_stdio() -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    prog = "收藏夹遗忘曲线" if getattr(sys, "frozen", False) else "python -m bili_fav_review"
     p = argparse.ArgumentParser(
-        prog="python -m bili_fav_review",
+        prog=prog,
         description="收藏夹遗忘曲线 · B站版 — 把B站收藏夹变成会主动找你复习的知识库",
     )
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -113,5 +114,8 @@ def _run_anki(args) -> int:
 
 def main(argv=None) -> int:
     _setup_windows_stdio()
+    if argv is None and len(sys.argv) == 1:
+        # 无子命令（双击 exe / 直接运行）→ 直接打开图形界面，不必记命令
+        return _run_gui()
     args = build_parser().parse_args(argv)
     return args.func(args) or 0

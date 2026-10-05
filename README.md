@@ -27,34 +27,34 @@
 
 ## 安装
 
-### 方式一：一键安装（推荐，Windows 10/11）
+### 方式一：一键安装（推荐，Windows 10/11，**无需安装 Python**）
 
-双击或运行 **`install.bat`**（需已装 Python 3.11+）。安装器自动完成：
+从发布包解压后，双击 **`install.bat`**。安装器自动完成：
 
-1. 在 `%LOCALAPPDATA%\BiliFavReview` 建独立虚拟环境并安装程序（与源码目录解耦）
-2. 生成 `bili-review` 命令并写入用户 PATH（新开终端即可直接用）
+1. 把程序（独立 exe）安装到 `%LOCALAPPDATA%\BiliFavReview`（从旧版 venv 安装升级时会自动清理旧运行环境）
+2. 创建桌面 / 开始菜单「收藏夹遗忘曲线」快捷方式（双击即开图形界面，无黑窗口）
 3. 在 `~\.bili_fav_review\` 生成默认配置 `config.toml`
-4. 询问是否注册"每日提醒"计划任务（默认 09:30 弹 Toast 通知）
+4. 询问是否注册"每日提醒"计划任务（默认 09:30 弹通知）
 
 ```bat
-install.bat                    :: 交互安装
-install.bat --TaskTime 21:00   :: 指定每日提醒时间
-install.bat --NoTask           :: 不建计划任务
-install.bat --Portable D:\BFR  :: 便携安装（不动 PATH / 注册表 / 计划任务）
+install.bat                     :: 交互安装
+install.bat -TaskTime 21:00     :: 指定每日提醒时间
+install.bat -NoTask             :: 不建计划任务
+install.bat -Portable D:\BFR    :: 便携安装（只放程序，不建快捷方式/计划任务）
 ```
 
-装完后（新开一个终端）：
+交给进阶用户：装完后命令行用法 = 直接运行安装目录里的 exe（无参数打开界面，带子命令走 CLI）：
 
 ```bat
-bili-review demo        :: 不登录先体验（内置演示数据）
-bili-review login       :: 扫码登录 B 站
-bili-review sync        :: 同步收藏夹 + 生成复习卡片
-bili-review review      :: 复习今天到期的卡片
+:: 以默认安装目录为例
+"%LOCALAPPDATA%\BiliFavReview\收藏夹遗忘曲线.exe" demo    :: 不登录先体验（内置演示数据）
+"%LOCALAPPDATA%\BiliFavReview\收藏夹遗忘曲线.exe" login   :: 扫码登录 B 站
+"%LOCALAPPDATA%\BiliFavReview\收藏夹遗忘曲线.exe" sync    :: 同步收藏夹 + 生成复习卡片
 ```
 
-**卸载**：运行 `uninstall.bat`（自动移除计划任务、PATH、程序文件；数据目录可选保留或删除）。
+**卸载**：运行程序目录里的 `uninstall.bat`（自动移除计划任务、快捷方式、程序文件；数据目录可选保留或删除）。
 
-**分发给别人**：运行 `release.bat`，产物 `dist/BiliFavReview-v*.zip` 发给对方，解压后双击 `install.bat` 即可。
+**开发者出包**：源码目录里 `build_exe.bat` 打出 `dist\收藏夹遗忘曲线.exe`；`install.bat` 可直接把当前源码构建安装到本机；`release.bat` 生成可分发的 `dist/BiliFavReview-v*.zip`。
 
 ### 方式二：手动安装（开发模式）
 
@@ -70,10 +70,10 @@ python -m venv .venv
 
 界面采用与「桌面工作台」一致的设计语言：**左侧深石墨导航栏 + 浅色卡片式页面**，柔和模块色点缀。
 
-安装器默认会在**桌面和开始菜单**创建「收藏夹遗忘曲线」图标，双击即开（无黑窗口）。也可用命令启动：
+安装器默认会在**桌面和开始菜单**创建「收藏夹遗忘曲线」图标，双击即开（独立 exe，无控制台窗口）。源码运行时：
 
 ```bat
-bili-review gui
+.venv\Scripts\python -m bili_fav_review gui   :: 也可不带参数直接运行，默认打开界面
 ```
 
 界面共 6 页（左侧导航切换）：
@@ -88,7 +88,7 @@ bili-review gui
 | 统计 | 未来 7 天到期分布柱状图、近 14 天复习活跃度图、累计数据（忘过次数/平均间隔/长期记忆） |
 | 设置 | 填 API Key/接口/模型（保存到 config.toml）；一键创建/移除每日提醒计划任务；Server酱微信推送（可选）；打开数据文件夹 |
 
-> 用安装的桌面图标启动时走 `pythonw`（无控制台窗口）；程序崩溃会自动把堆栈写到 `~/.bili_fav_review/gui_error.log`。
+> 桌面图标启动的是独立 exe（无控制台窗口）；程序崩溃会自动把堆栈写到 `~/.bili_fav_review/gui_error.log`。界面基于系统 WebView2（Win10/11 自带 Edge 内核），不可用时自动回退到 Edge 应用窗口或默认浏览器，同一套页面不受影响。
 
 ## 快速开始
 
@@ -146,17 +146,18 @@ bili-review gui
 安装时若跳过了计划任务，随时可补建（会覆盖旧任务）：
 
 ```bat
-install.bat --TaskTime 09:30
+install.bat -TaskTime 09:30
 ```
 
-等价的手动方式：
+任务由安装器创建，等价手动方式：
 
 ```bat
 schtasks /Create /SC DAILY /ST 09:30 /TN "BiliFavReview" ^
-  /TR "C:\Users\%USERNAME%\AppData\Local\BiliFavReview\bin\bili-review.cmd" due --notify"
+  /TR "\"C:\Users\%USERNAME%\AppData\Local\BiliFavReview\收藏夹遗忘曲线.exe\" due --notify"
 ```
 
-> 注意：计划任务的启动目录不是项目目录，建议把 `config.toml` 放在 `~/.bili_fav_review/`（安装器已默认放这里），保证读到同一份数据库。Toast 通知需要可选依赖：`pip install win11toast`。
+> 提醒任务后台静默运行（不弹黑窗口）：配置了 Server酱会推送微信；Windows Toast 通知依赖可选组件 win11toast，未安装时静默降级、不影响程序本身。
+> 注意：计划任务的启动目录不是程序目录，配置文件建议放 `~/.bili_fav_review/`（安装器已默认放这里），保证读到同一份数据库。
 
 ## 工作原理与已知限制
 
@@ -180,14 +181,18 @@ bili_fav_review/
 ├── bilibili/        # wbi 签名 / 扫码登录 / API 客户端（限速+风控退避）
 ├── store/           # SQLite + FTS5 检索 + SM-2 简化调度
 ├── commands/        # sync / review / search / stats / demo / account
+├── webui/           # 图形界面：本地 HTTP 服务 + pywebview 窗口 + 零构建前端（static/）
 ├── summarize.py     # LLM 复习卡片生成（OpenAI 兼容接口）
 └── cli.py           # 命令分发
-tests/               # 27 个单元测试
+assets/              # 图标设计源（SVG/PNG）与生成脚本
+exe_entry.py         # PyInstaller 打包入口（build_exe.bat 使用）
+tests/               # 单元测试
 ```
 
 ## Roadmap
 
 - [x] 卡片库与统计页、Anki 导出、Server酱推送、自动备份（v0.4.0）
+- [x] 界面重构为本地 WebUI + 独立 exe 分发（v0.5.0，无需 Python，安装器一键升级）
 - [ ] 无字幕视频用本地 ASR（funasr/whisper）兜底
 - [ ] 复习卡片跳转视频时间戳（从问题直达片段）
 - [ ] 收藏夹自动监听（新收藏自动进队列）
